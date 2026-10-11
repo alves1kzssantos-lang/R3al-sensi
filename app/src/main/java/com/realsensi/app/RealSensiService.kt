@@ -72,7 +72,6 @@ class RealSensiService : Service() {
     )
 
     private val tabs = listOf(
-        Pair("sens", "Sensi"),
         Pair("shot", "RealShot"),
         Pair("tune", "Ajustes"),
         Pair("mira", "Mira"),
@@ -506,7 +505,6 @@ class RealSensiService : Service() {
         }
 
         when (tabs[i].first) {
-            "sens" -> showSensi()
             "shot" -> showShot()
             "tune" -> showAjustes()
             "mira" -> showMira()
@@ -542,6 +540,8 @@ class RealSensiService : Service() {
         title: String,
         sub: String
     ) {
+        AppLog.add(this, kind, "$title - $sub")
+
         val host = toastHost
 
         if (host == null || panel == null) {
@@ -565,7 +565,7 @@ class RealSensiService : Service() {
         card.background = roundRect(
             Th.TOAST_FILL,
             dp(12).toFloat(),
-            Color.parseColor("#C9A2FF"),
+            Color.parseColor("#33FFFFFF"),
             dp(1)
         )
 
@@ -580,7 +580,7 @@ class RealSensiService : Service() {
         t.setSingleLine(true)
         t.ellipsize = TextUtils.TruncateAt.END
 
-        val s = tv(sub, 11f, Color.parseColor("#EBDDFF"))
+        val s = tv(sub, 11f, Color.parseColor("#FFE3E3"))
         s.setSingleLine(true)
         s.ellipsize = TextUtils.TruncateAt.END
 
