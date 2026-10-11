@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import java.security.MessageDigest
@@ -23,17 +24,39 @@ const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
 const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
 object Th {
-    val BG = Color.parseColor("#0A0612")
-    val PANEL = Color.parseColor("#120C1F")
-    val CARD = Color.parseColor("#181028")
-    val BORDER = Color.parseColor("#33225A")
-    val PURPLE = Color.parseColor("#A66BFF")
-    val PURPLE_DARK = Color.parseColor("#2A1A4D")
-    val TOAST = Color.parseColor("#1E1038")
+    var BG = Color.parseColor("#0A0612")
+    var PANEL = Color.parseColor("#120C1F")
+    var CARD = Color.parseColor("#181028")
+    var BORDER = Color.parseColor("#33225A")
+    var PURPLE = Color.parseColor("#A66BFF")
+    var PURPLE_DARK = Color.parseColor("#2A1A4D")
+    var TOAST = Color.parseColor("#1E1038")
+    // A notificacao e sempre roxa, qualquer que seja o tema do painel
+    val TOAST_FILL = Color.parseColor("#8E54F0")
     val TEXT = Color.parseColor("#FFFFFF")
     val SUB = Color.parseColor("#A99BC4")
     val RED = Color.parseColor("#FF6B7D")
     val GREEN = Color.parseColor("#7CE3A1")
+
+    // nome, BG, PANEL, CARD, BORDER, destaque, destaque escuro
+    val themes = listOf(
+        arrayOf("Roxo", "#0A0612", "#120C1F", "#181028", "#33225A", "#A66BFF", "#2A1A4D"),
+        arrayOf("Preto", "#000000", "#0A0A0A", "#121212", "#2A2A2A", "#A66BFF", "#241838"),
+        arrayOf("Azul", "#060B14", "#0B1424", "#101C30", "#1E3A66", "#4DA3FF", "#14305A"),
+        arrayOf("Vermelho", "#120606", "#1C0C0C", "#251010", "#5A2222", "#FF5A5A", "#4D1A1A"),
+        arrayOf("Verde", "#06120B", "#0C1C13", "#10251A", "#1E5A38", "#3DDC84", "#14402A"),
+        arrayOf("Rosa", "#12060D", "#1C0C14", "#250F1B", "#5A2243", "#FF5CA8", "#4D1A38")
+    )
+
+    fun setTheme(i: Int) {
+        val t = themes[i.coerceIn(0, themes.size - 1)]
+        BG = Color.parseColor(t[1])
+        PANEL = Color.parseColor(t[2])
+        CARD = Color.parseColor(t[3])
+        BORDER = Color.parseColor(t[4])
+        PURPLE = Color.parseColor(t[5])
+        PURPLE_DARK = Color.parseColor(t[6])
+    }
 }
 
 fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
@@ -117,6 +140,67 @@ fun Context.chipRow(opts: List<String>, sel: Int, onSel: (Int) -> Unit): LinearL
     return row
 }
 
+fun Context.chipGrid(opts: List<String>, sel: Int, perRow: Int, onSel: (Int) -> Unit): LinearLayout {
+    val col = vbox()
+    var start = 0
+    while (start < opts.size) {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        for (k in 0 until perRow) {
+            val i = start + k
+            if (i < opts.size) {
+                val c = tv(opts[i], 12f, if (i == sel) Color.WHITE else Th.SUB, true)
+                c.gravity = Gravity.CENTER
+                c.setPadding(dp(6), dp(8), dp(6), dp(8))
+                c.background = if (i == sel) roundRect(Th.PURPLE_DARK, dp(10).toFloat(), Th.PURPLE, dp(1))
+                else roundRect(Th.CARD, dp(10).toFloat(), Th.BORDER, dp(1))
+                c.setOnClickListener { onSel(i) }
+                row.addView(c, lp(0, WRAP, 1f, if (k == 0) 0 else dp(6)))
+            } else {
+                row.addView(View(this), lp(0, 1, 1f, dp(6)))
+            }
+        }
+        col.addView(row, lp(MATCH, WRAP, 0f, 0, 0, 0, dp(6)))
+        start += perRow
+    }
+    return col
+}
+
+fun Context.sliderRow(label: String, min: Int, max: Int, value: Int, fmt: (Int) -> String, onChange: (Int) -> Unit): LinearLayout {
+    val col = vbox()
+    val head = hbox()
+    head.addView(tv(label, 11f, Th.SUB), lp(0, WRAP, 1f))
+    val vt = tv(fmt(value), 11f, Th.TEXT, true)
+    head.addView(vt, lp(WRAP, WRAP))
+    val sb = SeekBar(this)
+    sb.max = max - min
+    sb.progress = (value - min).coerceIn(0, max - min)
+    sb.progressTintList = ColorStateList.valueOf(Th.PURPLE)
+    sb.thumbTintList = ColorStateList.valueOf(Th.PURPLE)
+    sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
+            val v = p + min
+            vt.text = fmt(v)
+            if (fromUser) onChange(v)
+        }
+        override fun onStartTrackingTouch(s: SeekBar?) {}
+        override fun onStopTrackingTouch(s: SeekBar?) {}
+    })
+    col.addView(head, lp(MATCH, WRAP))
+    col.addView(sb, lp(MATCH, WRAP))
+    return col
+}
+
+fun Context.colorDot(color: Int, selected: Boolean): View {
+    val v = View(this)
+    val d = GradientDrawable()
+    d.shape = GradientDrawable.OVAL
+    d.setColor(color)
+    d.setStroke(dp(if (selected) 3 else 1), if (selected) Color.WHITE else Th.BORDER)
+    v.background = d
+    return v
+}
+
 fun Context.valueCard(label: String, value: String): LinearLayout {
     val c = vbox()
     c.setPadding(dp(10), dp(8), dp(10), dp(8))
@@ -180,6 +264,7 @@ class LogoView(ctx: Context) : View(ctx) {
 
 class BarView(ctx: Context) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    var fillColor: Int = 0
     var progress: Float = 0f
         set(v) {
             field = v
@@ -191,7 +276,7 @@ class BarView(ctx: Context) : View(ctx) {
         val h = height.toFloat()
         p.color = Th.PURPLE_DARK
         c.drawRoundRect(0f, 0f, w, h, h / 2f, h / 2f, p)
-        p.color = Th.PURPLE
+        p.color = if (fillColor != 0) fillColor else Th.PURPLE
         c.drawRoundRect(0f, 0f, w * progress.coerceIn(0f, 1f), h, h / 2f, h / 2f, p)
     }
 }
@@ -328,6 +413,22 @@ class IconView(ctx: Context, var kind: String, tint0: Int) : View(ctx) {
                 path.close()
                 c.drawPath(path, p)
                 c.drawArc(RectF(13f, 8f, 19f, 16f), -60f, 120f, false, p)
+            }
+            "mira" -> {
+                c.drawRoundRect(RectF(3f, 3f, 21f, 21f), 4f, 4f, p)
+                c.drawLine(12f, 7f, 12f, 10f, p)
+                c.drawLine(12f, 14f, 12f, 17f, p)
+                c.drawLine(7f, 12f, 10f, 12f, p)
+                c.drawLine(14f, 12f, 17f, 12f, p)
+            }
+            "modes" -> {
+                c.drawCircle(12f, 12f, 9f, p)
+                p.style = Paint.Style.FILL
+                c.drawArc(RectF(3f, 3f, 21f, 21f), 90f, 180f, true, p)
+            }
+            "perf" -> {
+                c.drawArc(RectF(3f, 5f, 21f, 23f), 180f, 180f, false, p)
+                c.drawLine(12f, 14f, 17f, 8f, p)
             }
             "screen" -> {
                 c.drawRoundRect(RectF(7f, 2f, 17f, 22f), 2f, 2f, p)
