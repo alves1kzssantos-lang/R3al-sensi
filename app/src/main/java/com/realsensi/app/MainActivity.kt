@@ -28,6 +28,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("rs", MODE_PRIVATE)
+        Th.setTheme(prefs.getInt("theme", 0))
         window.statusBarColor = Th.BG
         window.navigationBarColor = Th.BG
         val saved = prefs.getString("key", null)
@@ -145,13 +146,19 @@ class MainActivity : Activity() {
             Triple("sens", "Sensi", "Gerador de sensibilidade"),
             Triple("shot", "RealShot", "Limpeza real de memória"),
             Triple("tune", "Ajustes", "Switches que mexem de verdade"),
+            Triple("mira", "Mira", "Mira no centro da tela"),
+            Triple("modes", "Modos", "Camuflagem e Performance"),
             Triple("train", "Treino", "Rotina de 1 hora")
         )
         var i = 0
-        while (i < 4) {
+        while (i < items.size) {
             val row = LinearLayout(this)
             row.orientation = LinearLayout.HORIZONTAL
             for (j in 0..1) {
+                if (i + j >= items.size) {
+                    row.addView(View(this), lp(0, 1, 1f, dp(8), 0, 0, 0))
+                    continue
+                }
                 val item = items[i + j]
                 val b = vbox()
                 b.setPadding(dp(12), dp(12), dp(12), dp(12))
