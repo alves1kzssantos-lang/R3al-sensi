@@ -1,27 +1,18 @@
 package com.realsensi.app
 
-import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
-import android.graphics.Typeface
-import android.media.AudioManager
 import android.net.Uri
-import android.os.BatteryManager
 import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.StatFs
 import android.provider.Settings
 import android.text.TextUtils
 import android.view.Gravity
@@ -35,24 +26,44 @@ import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
-import java.io.File
-import java.util.Locale
 import kotlin.math.abs
 
 class RealSensiService : Service() {
 
-    private lateinit var wm: WindowManager
-    private lateinit var prefs: SharedPreferences
-    private val handler = Handler(Looper.getMainLooper())
+    lateinit var wm: WindowManager
+    lateinit var prefs: SharedPreferences
+    val handler = Handler(Looper.getMainLooper())
 
-    private var bubble: View? = null
-    private var bubbleP: WindowManager.LayoutParams? = null
-    private var panel: View? = null
-    private var panelP: WindowManager.LayoutParams? = null
-    private var content: FrameLayout? = null
-    private var toastHost: LinearLayout? = null
-    private val sideBtns = ArrayList<FrameLayout>()
-    private var tab = 0
+    var bubble: View? = null
+    var bubbleP: WindowManager.LayoutParams? = null
+    var panel: View? = null
+    var panelP: WindowManager.LayoutParams? = null
+    var content: FrameLayout? = null
+    var toastHost: LinearLayout? = null
+    val sideBtns = ArrayList<FrameLayout>()
+    var tab = 0
+    var ignoreSw = false
+
+    var sStyle = 0
+    var sLevel = 1
+    var sRandom = true
+    var sDpi = true
+    var sensiResult: List<Pair<String, String>>? = null
+
+    var tStyle = 0
+    var treinoResult: List<Triple<Int, String, String>>? = null
+
+    var shotRunning = false
+    val termBuf = StringBuilder()
+    var shotProgress = 0f
+    var termView: TextView? = null
+    var barView: BarView? = null
+
+    @Volatile var shotDone = false
+    @Volatile var shotKilled = 0
+    @Volatile var shotCache = 0L
+
+    val safeApps = setOf("com.dts.freefireth", "com.dts.freefiremax")
 
     private val tabs = listOf(
         Pair("sens", "Sensi"),
@@ -61,28 +72,6 @@ class RealSensiService : Service() {
         Pair("info", "Info"),
         Pair("train", "Treino")
     )
-
-    private var sStyle = 0
-    private var sLevel = 1
-    private var sRandom = true
-    private var sDpi = true
-    private var sensiResult: List<Pair<String, String>>? = null
-
-    private var tStyle = 0
-    private var treinoResult: List<Triple<Int, String, String>>? = null
-
-    private var shotRunning = false
-    private val termBuf = StringBuilder()
-    private var shotProgress = 0f
-    private var termView: TextView? = null
-    private var barView: BarView? = null
-
-    @Volatile private var shotDone = false
-    @Volatile private var shotKilled = 0
-    @Volatile private var shotCache = 0L
-
-    private var ignoreSw = false
-    private val safeApps = setOf("com.dts.freefireth", "com.dts.freefiremax")
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -134,8 +123,6 @@ class RealSensiService : Service() {
             startForeground(1, n)
         }
     }
-
-    // ---------- janelas ----------
 
     private fun newParams(w: Int, h: Int): WindowManager.LayoutParams {
         val p = WindowManager.LayoutParams(
@@ -315,13 +302,13 @@ class RealSensiService : Service() {
         }
     }
 
-    private fun page(): LinearLayout {
+    fun page(): LinearLayout {
         val l = vbox()
         l.setPadding(dp(6), dp(0), dp(6), dp(70))
         return l
     }
 
-    private fun setContent(v: View) {
+    fun setContent(v: View) {
         val c = content ?: return
         c.removeAllViews()
         val sv = ScrollView(this)
@@ -330,9 +317,7 @@ class RealSensiService : Service() {
         c.addView(sv, FrameLayout.LayoutParams(MATCH, MATCH))
     }
 
-    // ---------- mensagens elegantes ----------
-
-    private fun toast(kind: String, title: String, sub: String) {
+    fun toast(kind: String, title: String, sub: String) {
         val host = toastHost
         if (host == null || panel == null) {
             Toast.makeText(this, "$title - $sub", Toast.LENGTH_SHORT).show()
@@ -361,7 +346,7 @@ class RealSensiService : Service() {
         }, 2800)
     }
 
-    private fun switchLine(title: String, checked: Boolean, onChange: (Boolean) -> Unit): View {
+    fun switchLine(title: String, checked: Boolean, onChange: (Boolean) -> Unit): View {
         val row = hbox()
         row.addView(tv(title, 13f, Th.TEXT), lp(0, WRAP, 1f))
         val sw = Switch(this)
@@ -373,218 +358,14 @@ class RealSensiService : Service() {
         return row
     }
 
-    // ---------- SENSI ----------
-
-    private fun showSensi() {
-        val p = page()
-        p.addView(tv("Gerador de sensibilidade", 15f, Th.TEXT, true))
-        p.addView(tv("Estilo de jogo", 11f, Th.SUB), lp(MATCH, WRAP, 0f, 0, dp(8), 0, dp(4)))
-        p.addView(chipRow(listOf("Rush", "Capa", "Sniper"), sStyle) {
-            sStyle = it
-            showSensi()
-        })
-        p.addView(tv("Nível do celular", 11f, Th.SUB), lp(MATCH, WRAP, 0f, 0, dp(8), 0, dp(4)))
-        p.addView(chipRow(listOf("Fraco", "Médio", "Forte"), sLevel) {
-            sLevel = it
-            showSensi()
-        })
-        p.addView(switchLine("Variação aleatória", sRandom) {
-            sRandom = it
-            toast("sens", "Variação aleatória", if (it) "Ligada" else "Desligada")
-        }, lp(MATCH, WRAP, 0f, 0, dp(6), 0, 0))
-        p.addView(switchLine("Mostrar DPI", sDpi) {
-            sDpi = it
-            toast("sens", "Mostrar DPI", if (it) "Ligado" else "Desligado")
-        })
-        val gen = btn("Gerar sensibilidade")
-        gen.setOnClickListener {
-            generateSensi()
-            showSensi()
+    fun openSettings(action: String, withPkg: Boolean) {
+        try {
+            val i = Intent(action)
+            if (withPkg) i.data = Uri.parse("package:$packageName")
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(i)
+        } catch (e: Exception) {
+            toast("warn", "Não foi possível abrir", "Abra as configurações manualmente")
         }
-        p.addView(gen, lp(MATCH, WRAP, 0f, 0, dp(8), 0, dp(10)))
-        val r = sensiResult
-        if (r != null) {
-            p.addView(grid2(r))
-            p.addView(tv("Valores sugeridos pelo app. Ajuste ao seu gosto; eles não alteram o jogo sozinhos.", 10f, Th.SUB))
-        }
-        setContent(p)
     }
-
-    private fun generateSensi() {
-        val base = when (sStyle) {
-            0 -> intArrayOf(188, 184, 176, 168, 140, 172)
-            1 -> intArrayOf(176, 170, 160, 150, 126, 158)
-            else -> intArrayOf(162, 156, 148, 140, 118, 150)
-        }
-        val adj = when (sLevel) {
-            0 -> 6
-            1 -> 0
-            else -> -6
-        }
-        val names = listOf("Geral", "Ponto Vermelho", "2x", "4x", "AWM", "Olhar Livre")
-        val out = ArrayList<Pair<String, String>>()
-        for (i in names.indices) {
-            var v = base[i] + adj
-            if (sRandom) v += (-5..5).random()
-            v = v.coerceIn(100, 200)
-            out.add(Pair(names[i], v.toString()))
-        }
-        if (sDpi) {
-            var dpi = when (sLevel) {
-                0 -> 420
-                1 -> 480
-                else -> 540
-            }
-            if (sRandom) dpi += (-2..2).random() * 10
-            out.add(Pair("DPI sugerido", dpi.toString()))
-        }
-        sensiResult = out
-        val estilo = listOf("Rush", "Capa", "Sniper")[sStyle]
-        toast("check", "Sensibilidade gerada", "Estilo $estilo")
-    }
-
-    // ---------- REALSHOT ----------
-
-    private fun showShot() {
-        val p = page()
-        p.addView(tv("RealShot", 15f, Th.TEXT, true))
-        p.addView(
-            tv("Limpa o cache do próprio app e pede ao sistema para encerrar apps em segundo plano. O Free Fire é poupado.", 11f, Th.SUB),
-            lp(MATCH, WRAP, 0f, 0, dp(2), 0, dp(8))
-        )
-        val term = tv("", 11f, Th.GREEN)
-        term.typeface = Typeface.MONOSPACE
-        term.setPadding(dp(10), dp(8), dp(10), dp(8))
-        term.background = roundRect(android.graphics.Color.BLACK, dp(12).toFloat(), Th.BORDER, dp(1))
-        term.minLines = 5
-        term.text = if (termBuf.isEmpty()) "> pronto para iniciar" else termBuf.toString()
-        termView = term
-        p.addView(term, lp(MATCH, WRAP))
-        val bar = BarView(this)
-        bar.progress = shotProgress
-        barView = bar
-        p.addView(bar, lp(MATCH, dp(8), 0f, 0, dp(8), 0, dp(10)))
-
-        val go = btn("Iniciar limpeza")
-        go.setOnClickListener { startShot() }
-        p.addView(go, lp(MATCH, WRAP))
-        val st = btn("Abrir armazenamento do sistema", false)
-        st.setOnClickListener { openSettings(Settings.ACTION_INTERNAL_STORAGE_SETTINGS, false) }
-        p.addView(st, lp(MATCH, WRAP, 0f, 0, dp(8), 0, dp(6)))
-        p.addView(
-            tv("Sem root, o Android não permite apagar o cache de outros apps. Use o botão acima para limpar manualmente.", 10f, Th.SUB)
-        )
-        setContent(p)
-    }
-
-    private fun updateShotViews() {
-        termView?.text = termBuf.toString()
-        barView?.progress = shotProgress
-    }
-
-    private fun startShot() {
-        if (shotRunning) return
-        shotRunning = true
-        shotDone = false
-        shotKilled = 0
-        shotCache = 0L
-        termBuf.setLength(0)
-        shotProgress = 0f
-        updateShotViews()
-        val before = availMb()
-        Thread {
-            try {
-                shotCache = clearOwnCache()
-                shotKilled = killBackground()
-            } catch (e: Exception) {
-            }
-            shotDone = true
-        }.start()
-        val lines = listOf(
-            "> iniciando RealShot",
-            "> verificando memoria",
-            "> limpando cache do app",
-            "> listando apps em segundo plano",
-            "> poupando Free Fire",
-            "> encerrando processos"
-        )
-        var i = 0
-        val step = object : Runnable {
-            override fun run() {
-                if (i < lines.size) {
-                    termBuf.append(lines[i]).append('\n')
-                    i++
-                    shotProgress = i * 0.7f / lines.size
-                    updateShotViews()
-                    handler.postDelayed(this, 450)
-                } else if (!shotDone) {
-                    handler.postDelayed(this, 200)
-                } else {
-                    handler.postDelayed({ finishShot(before) }, 900)
-                }
-            }
-        }
-        handler.post(step)
-    }
-
-    private fun finishShot(before: Long) {
-        val after = availMb()
-        val diff = after - before
-        val sign = if (diff >= 0) "+" else ""
-        termBuf.append("> apps notificados: ").append(shotKilled).append('\n')
-        termBuf.append("> cache do app: ").append(fmtBytes(shotCache)).append('\n')
-        termBuf.append("> RAM livre: $before MB -> $after MB ($sign$diff MB)\n")
-        termBuf.append("> concluido")
-        shotProgress = 1f
-        shotRunning = false
-        updateShotViews()
-        toast("shot", "RealShot concluído", "${shotKilled} apps notificados, RAM $sign$diff MB")
-    }
-
-    private fun availMb(): Long {
-        val mi = ActivityManager.MemoryInfo()
-        (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(mi)
-        return mi.availMem / (1024L * 1024L)
-    }
-
-    private fun sizeAndDelete(f: File?): Long {
-        if (f == null || !f.exists()) return 0L
-        var s = 0L
-        if (f.isDirectory) {
-            val kids = f.listFiles()
-            if (kids != null) {
-                for (k in kids) s += sizeAndDelete(k)
-            }
-        } else {
-            s += f.length()
-        }
-        f.delete()
-        return s
-    }
-
-    private fun clearOwnCache(): Long {
-        var total = 0L
-        val dirs = listOf(cacheDir, externalCacheDir)
-        for (d in dirs) {
-            val kids = d?.listFiles()
-            if (kids != null) {
-                for (k in kids) total += sizeAndDelete(k)
-            }
-        }
-        return total
-    }
-
-    private fun killBackground(): Int {
-        val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        var n = 0
-        val apps = packageManager.getInstalledApplications(0)
-        for (a in apps) {
-            val pkg = a.packageName
-            if (pkg == packageName) continue
-            if (safeApps.contains(pkg)) continue
-            if ((a.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
-            if ((a.flags and ApplicationInfo.FLAG_STOPPED) != 0) continue
-            try {
-                am.killBackgroundProcesses(pkg)
-                n++
-         
+}
