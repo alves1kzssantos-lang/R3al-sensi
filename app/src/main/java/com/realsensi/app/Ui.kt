@@ -24,28 +24,27 @@ const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
 const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
 object Th {
-    var BG = Color.parseColor("#0A0612")
-    var PANEL = Color.parseColor("#120C1F")
-    var CARD = Color.parseColor("#181028")
-    var BORDER = Color.parseColor("#33225A")
-    var PURPLE = Color.parseColor("#A66BFF")
-    var PURPLE_DARK = Color.parseColor("#2A1A4D")
+    var BG = Color.parseColor("#000000")
+    var PANEL = Color.parseColor("#050505")
+    var CARD = Color.parseColor("#0D0D0D")
+    var BORDER = Color.parseColor("#2E1010")
+    var PURPLE = Color.parseColor("#FF2B2B")
+    var PURPLE_DARK = Color.parseColor("#3A0A0A")
     var TOAST = Color.parseColor("#1E1038")
-    // A notificacao e sempre roxa, qualquer que seja o tema do painel
-    val TOAST_FILL = Color.parseColor("#8E54F0")
+    var TOAST_FILL = Color.parseColor("#C41E1E")
     val TEXT = Color.parseColor("#FFFFFF")
-    val SUB = Color.parseColor("#A99BC4")
+    val SUB = Color.parseColor("#A89C9C")
     val RED = Color.parseColor("#FF6B7D")
     val GREEN = Color.parseColor("#7CE3A1")
 
-    // nome, BG, PANEL, CARD, BORDER, destaque, destaque escuro
+    // nome, BG, PANEL, CARD, BORDER, destaque, destaque escuro, notificacao
     val themes = listOf(
-        arrayOf("Roxo", "#0A0612", "#120C1F", "#181028", "#33225A", "#A66BFF", "#2A1A4D"),
-        arrayOf("Preto", "#000000", "#0A0A0A", "#121212", "#2A2A2A", "#A66BFF", "#241838"),
-        arrayOf("Azul", "#060B14", "#0B1424", "#101C30", "#1E3A66", "#4DA3FF", "#14305A"),
-        arrayOf("Vermelho", "#120606", "#1C0C0C", "#251010", "#5A2222", "#FF5A5A", "#4D1A1A"),
-        arrayOf("Verde", "#06120B", "#0C1C13", "#10251A", "#1E5A38", "#3DDC84", "#14402A"),
-        arrayOf("Rosa", "#12060D", "#1C0C14", "#250F1B", "#5A2243", "#FF5CA8", "#4D1A38")
+        arrayOf("Preto e vermelho", "#000000", "#050505", "#0D0D0D", "#2E1010", "#FF2B2B", "#3A0A0A", "#C41E1E"),
+        arrayOf("Preto e roxo", "#0A0612", "#120C1F", "#181028", "#33225A", "#A66BFF", "#2A1A4D", "#8E54F0"),
+        arrayOf("Azul", "#060B14", "#0B1424", "#101C30", "#1E3A66", "#4DA3FF", "#14305A", "#2F7FD6"),
+        arrayOf("Verde", "#06120B", "#0C1C13", "#10251A", "#1E5A38", "#3DDC84", "#14402A", "#2BAA63"),
+        arrayOf("Rosa", "#12060D", "#1C0C14", "#250F1B", "#5A2243", "#FF5CA8", "#4D1A38", "#D94488"),
+        arrayOf("Vermelho escuro", "#120606", "#1C0C0C", "#251010", "#5A2222", "#FF5A5A", "#4D1A1A", "#C43A3A")
     )
 
     fun setTheme(i: Int) {
@@ -56,6 +55,7 @@ object Th {
         BORDER = Color.parseColor(t[4])
         PURPLE = Color.parseColor(t[5])
         PURPLE_DARK = Color.parseColor(t[6])
+        TOAST_FILL = Color.parseColor(t[7])
     }
 }
 
