@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
@@ -42,6 +43,8 @@ class RealSensiService : Service() {
     var toastHost: LinearLayout? = null
     val sideBtns = ArrayList<FrameLayout>()
     var tab = 0
+    var xhair: CrosshairView? = null
+    var xhairP: WindowManager.LayoutParams? = null
     var ignoreSw = false
 
     var sStyle = 0
@@ -72,6 +75,8 @@ class RealSensiService : Service() {
         Pair("sens", "Sensi"),
         Pair("shot", "RealShot"),
         Pair("tune", "Ajustes"),
+        Pair("mira", "Mira"),
+        Pair("modes", "Modos"),
         Pair("info", "Info"),
         Pair("train", "Treino")
     )
@@ -82,6 +87,7 @@ class RealSensiService : Service() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         prefs = getSharedPreferences("rs", MODE_PRIVATE)
+        Th.setTheme(prefs.getInt("theme", 0))
     }
 
     override fun onStartCommand(
@@ -97,6 +103,7 @@ class RealSensiService : Service() {
         }
 
         if (bubble == null) addBubble()
+        if (prefs.getBoolean("xh_on", false) && xhair == null) xhairShow()
 
         return START_STICKY
     }
@@ -104,6 +111,7 @@ class RealSensiService : Service() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         closePanel()
+        xhairHide()
 
         val b = bubble
 
@@ -229,8 +237,8 @@ class RealSensiService : Service() {
         val b = LogoView(this)
         val p = newParams(size, size)
 
-        p.x = dp(8)
-        p.y = dp(160)
+        p.x = bubbleP?.x ?: dp(8)
+        p.y = bubbleP?.y ?: dp(160)
 
         if (prefs.getBoolean("keepon", false)) {
             p.flags =
@@ -250,6 +258,31 @@ class RealSensiService : Service() {
 
         bubble = b
         bubbleP = p
+        applyCamo()
+    }
+
+    fun refreshBubble() {
+        val b = bubble
+        if (b != null) {
+            try {
+                wm.removeView(b)
+            } catch (e: Exception) {
+            }
+        }
+        bubble = null
+        addBubble()
+    }
+
+    // Modo Camuflagem: so deixa a bolinha (e a mira, se escolhido) quase invisiveis.
+    // Nao esconde nada do sistema nem do jogo.
+    fun applyCamo() {
+        val b = bubble
+        val camo = prefs.getBoolean("camo", false)
+        if (b != null) b.alpha = if (camo && panel == null) 0.04f else 1f
+        val x = xhair
+        if (x != null) {
+            x.visibility = if (camo && prefs.getBoolean("camo_xh", false)) View.INVISIBLE else View.VISIBLE
+        }
     }
 
     private fun reAddBubble() {
@@ -271,14 +304,14 @@ class RealSensiService : Service() {
         }
     }
 
-    private fun openPanel() {
+    fun openPanel() {
         if (panel != null) return
 
         val dm = resources.displayMetrics
 
-        // TAMANHO DO PAINEL: MÉDIO
-        val pw = minOf(dm.widthPixels - dp(24), dp(340))
-        val ph = minOf(dm.heightPixels - dp(100), dp(380))
+        // TAMANHO DO PAINEL: BAIXO E LARGO (o conteudo rola pra baixo)
+        val pw = minOf(dm.widthPixels - dp(24), dp(520))
+        val ph = minOf(dm.heightPixels - dp(40), dp(250))
 
         val root = FrameLayout(this)
 
@@ -330,10 +363,13 @@ class RealSensiService : Service() {
             dp(6)
         )
 
-        side.background = roundRect(
+        val sideScroll = ScrollView(this)
+        sideScroll.isVerticalScrollBarEnabled = false
+        sideScroll.background = roundRect(
             Th.PANEL,
             dp(16).toFloat()
         )
+        sideScroll.addView(side)
 
         sideBtns.clear()
 
@@ -343,8 +379,8 @@ class RealSensiService : Service() {
             b.addView(
                 icon(tabs[i].first, 22, Th.SUB),
                 FrameLayout.LayoutParams(
-                    dp(22),
-                    dp(22),
+                    dp(20),
+                    dp(20),
                     Gravity.CENTER
                 )
             )
@@ -355,7 +391,7 @@ class RealSensiService : Service() {
 
             side.addView(
                 b,
-                lp(dp(44), dp(44), 0f, 0, 0, 0, dp(4))
+                lp(dp(40), dp(40), 0f, 0, 0, 0, dp(2))
             )
 
             sideBtns.add(b)
@@ -365,7 +401,7 @@ class RealSensiService : Service() {
         content = cont
 
         body.addView(
-            side,
+            sideScroll,
             lp(WRAP, MATCH, 0f, dp(8), 0, 0, dp(8))
         )
 
@@ -427,10 +463,11 @@ class RealSensiService : Service() {
         panelP = p
 
         reAddBubble()
+        applyCamo()
         selectTab(tab)
     }
 
-    private fun closePanel() {
+    fun closePanel() {
         val v = panel ?: return
 
         try {
@@ -443,6 +480,7 @@ class RealSensiService : Service() {
         toastHost = null
         termView = null
         barView = null
+        applyCamo()
     }
 
     private fun selectTab(i: Int) {
@@ -467,18 +505,20 @@ class RealSensiService : Service() {
                 if (sel) Th.PURPLE else Th.SUB
         }
 
-        when (i) {
-            0 -> showSensi()
-            1 -> showShot()
-            2 -> showAjustes()
-            3 -> showInfo()
+        when (tabs[i].first) {
+            "sens" -> showSensi()
+            "shot" -> showShot()
+            "tune" -> showAjustes()
+            "mira" -> showMira()
+            "modes" -> showModos()
+            "info" -> showInfo()
             else -> showTreino()
         }
     }
 
     fun page(): LinearLayout {
         val l = vbox()
-        l.setPadding(dp(6), dp(0), dp(6), dp(70))
+        l.setPadding(dp(6), dp(0), dp(10), dp(60))
         return l
     }
 
@@ -523,14 +563,14 @@ class RealSensiService : Service() {
         )
 
         card.background = roundRect(
-            Th.TOAST,
+            Th.TOAST_FILL,
             dp(12).toFloat(),
-            Th.PURPLE,
+            Color.parseColor("#C9A2FF"),
             dp(1)
         )
 
         card.addView(
-            icon(kind, 20, Th.PURPLE),
+            icon(kind, 20, Color.WHITE),
             lp(dp(20), dp(20), 0f, 0, 0, dp(10), 0)
         )
 
@@ -540,7 +580,7 @@ class RealSensiService : Service() {
         t.setSingleLine(true)
         t.ellipsize = TextUtils.TruncateAt.END
 
-        val s = tv(sub, 11f, Th.SUB)
+        val s = tv(sub, 11f, Color.parseColor("#EBDDFF"))
         s.setSingleLine(true)
         s.ellipsize = TextUtils.TruncateAt.END
 
@@ -549,7 +589,8 @@ class RealSensiService : Service() {
 
         card.addView(col, lp(0, WRAP, 1f))
 
-        card.alpha = 0f
+        val light = prefs.getBoolean("perf", false)
+        card.alpha = if (light) 1f else 0f
 
         while (host.childCount >= 2) {
             host.removeViewAt(0)
@@ -560,19 +601,25 @@ class RealSensiService : Service() {
             lp(MATCH, WRAP, 0f, 0, dp(4), 0, 0)
         )
 
-        card.animate()
-            .alpha(1f)
-            .setDuration(180)
-            .start()
+        if (!light) {
+            card.animate()
+                .alpha(1f)
+                .setDuration(180)
+                .start()
+        }
 
         handler.postDelayed({
-            card.animate()
-                .alpha(0f)
-                .setDuration(220)
-                .withEndAction {
-                    host.removeView(card)
-                }
-                .start()
+            if (light) {
+                host.removeView(card)
+            } else {
+                card.animate()
+                    .alpha(0f)
+                    .setDuration(220)
+                    .withEndAction {
+                        host.removeView(card)
+                    }
+                    .start()
+            }
         }, 2800)
     }
 
