@@ -1,55 +1,44 @@
-
 package com.realsensi.app
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object AppLog {
-    private const val FILE = "rs_logs"
-    private const val KEY = "entries"
     private const val MAX = 200
 
     @Synchronized
-    fun add(context: Context, kind: String, message: String) {
-        val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val old = runCatching {
-            JSONArray(prefs.getString(KEY, "[]"))
-        }.getOrElse { JSONArray() }
+    fun add(ctx: Context, kind: String, msg: String) {
+        val sp = ctx.getSharedPreferences("rs_logs", Context.MODE_PRIVATE)
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        val clean = msg.replace("\n", " ").replace("\t", " ")
+        val line = "$time\t$kind\t$clean"
+        val old = sp.getString("log", "") ?: ""
+        val lines = if (old.isEmpty()) ArrayList<String>() else ArrayList(old.split("\n"))
+        lines.add(line)
+        while (lines.size > MAX) lines.removeAt(0)
+        sp.edit().putString("log", lines.joinToString("\n")).apply()
+    }
 
-        val item = JSONObject().apply {
-            put("kind", kind)
-            put("message", message)
-            put("time", System.currentTimeMillis())
+    // Do mais novo para o mais antigo: Triple(hora, tipo, mensagem)
+    @Synchronized
+    fun list(ctx: Context): List<Triple<String, String, String>> {
+        val sp = ctx.getSharedPreferences("rs_logs", Context.MODE_PRIVATE)
+        val old = sp.getString("log", "") ?: ""
+        if (old.isEmpty()) return emptyList()
+        val out = ArrayList<Triple<String, String, String>>()
+        for (l in old.split("\n").reversed()) {
+            val p = l.split("\t")
+            if (p.size >= 3) out.add(Triple(p[0], p[1], p[2]))
         }
-
-        val result = JSONArray()
-        val start = maxOf(0, old.length() - MAX + 1)
-
-        for (i in start until old.length()) {
-            result.put(old.getJSONObject(i))
-        }
-
-        result.put(item)
-        prefs.edit().putString(KEY, result.toString()).apply()
+        return out
     }
 
     @Synchronized
-    fun list(context: Context): List<JSONObject> {
-        val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val array = runCatching {
-            JSONArray(prefs.getString(KEY, "[]"))
-        }.getOrElse { JSONArray() }
-
-        return (0 until array.length()).mapNotNull {
-            runCatching { array.getJSONObject(it) }.getOrNull()
-        }.reversed()
-    }
-
-    fun clear(context: Context) {
-        context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY)
-            .apply()
+    fun clear(ctx: Context) {
+        ctx.getSharedPreferences("rs_logs", Context.MODE_PRIVATE).edit().clear().apply()
     }
 }
+
+// FIM
