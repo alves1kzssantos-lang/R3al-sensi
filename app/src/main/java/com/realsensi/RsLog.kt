@@ -21,7 +21,6 @@ object AppLog {
         sp.edit().putString("log", lines.joinToString("\n")).apply()
     }
 
-    // Do mais novo para o mais antigo: Triple(hora, tipo, mensagem)
     @Synchronized
     fun list(ctx: Context): List<Triple<String, String, String>> {
         val sp = ctx.getSharedPreferences("rs_logs", Context.MODE_PRIVATE)
