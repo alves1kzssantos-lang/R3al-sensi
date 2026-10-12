@@ -438,3 +438,5 @@ class IconView(ctx: Context, var kind: String, tint0: Int) : View(ctx) {
         c.restore()
     }
 }
+
+// FIM
